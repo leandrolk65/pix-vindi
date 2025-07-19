@@ -1,19 +1,11 @@
-import 'dotenv/config';
-import express from 'express';
-import fetch from 'node-fetch';
-
-const app = express();
-app.use(express.json());
-
-// Libera chamadas vindas apenas da sua loja
-app.use((_, res, next) => {
-  res.set('Access-Control-Allow-Origin', 'https://www.sualoja.com.br');
-  next();
-});
-
-// Cria Pix dinâmico
+// ---------- ROTA /create-pix ----------
 app.post('/create-pix', async (req, res) => {
-  const { amount, order_id = Date.now() } = req.body;
+  const { amount, order_id = Date.now() } = req.body || {};
+
+  // 1. validações básicas
+  if (!amount) {
+    return res.status(400).json({ error: 'amount não enviado' });
+  }
 
   const payload = {
     token_account: process.env.VINDI_TOKEN,
@@ -31,24 +23,21 @@ app.post('/create-pix', async (req, res) => {
     }]
   };
 
-  const r = await fetch('https://api.yapay.com.br/api/v3/transactions/payment', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload)
-  });
-  const j = await r.json();
-  if (!j?.data?.pix) return res.status(400).json({ error: 'Falha ao gerar Pix', raw: j });
+  try {
+    const r = await fetch(
+      'https://api.yapay.com.br/api/v3/transactions/payment',
+      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }
+    );
+    const j = await r.json();
+    if (!j?.data?.pix) throw new Error('Vindi não retornou pix');
 
-  res.json({
-    brcode: j.data.pix.qr_code_data,
-    qrCode: j.data.pix.qr_code_base64
-  });
+    res.json({
+      brcode: j.data.pix.qr_code_data,
+      qrCode: j.data.pix.qr_code_base64
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(502).json({ error: 'Falha ao gerar Pix', detail: err.message });
+  }
 });
-
-// Webhook (opcional — preencha depois)
-app.post('/api/vindi-webhook', (req, res) => {
-  console.log('Webhook recebido:', req.body);
-  res.sendStatus(200);
-});
-
-app.listen(process.env.PORT || 3000, () => console.log('Pix API pronta'));
+// ---------- FIM DA ROTA ----------
