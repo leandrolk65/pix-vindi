@@ -1,8 +1,22 @@
-// ---------- ROTA /create-pix ----------
+// -------------------- IMPORTAÇÕES --------------------
+import 'dotenv/config';
+import express from 'express';
+import fetch from 'node-fetch';
+
+// -------------------- APP & MIDDLEWARES --------------
+const app = express();
+app.use(express.json());
+
+// Apenas a sua loja pode chamar
+app.use((_, res, next) => {
+  res.set('Access-Control-Allow-Origin', 'https://www.sualoja.com.br'); // TROQUE pelo seu domínio real
+  next();
+});
+
+// -------------------- ROTA /create-pix ---------------
 app.post('/create-pix', async (req, res) => {
   const { amount, order_id = Date.now() } = req.body || {};
 
-  // 1. validações básicas
   if (!amount) {
     return res.status(400).json({ error: 'amount não enviado' });
   }
@@ -40,4 +54,13 @@ app.post('/create-pix', async (req, res) => {
     res.status(502).json({ error: 'Falha ao gerar Pix', detail: err.message });
   }
 });
-// ---------- FIM DA ROTA ----------
+
+// -------------------- WEBHOOK OPCIONAL ----------------
+app.post('/api/vindi-webhook', (req, res) => {
+  console.log('Webhook:', req.body);
+  res.sendStatus(200);
+});
+
+// -------------------- START SERVER --------------------
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`Pix API pronta na porta ${PORT}`));
